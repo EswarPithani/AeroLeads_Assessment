@@ -20,9 +20,11 @@ function App() {
 
     const fetchPosts = async () => {
         try {
+            console.log('Fetching posts...');
             const response = await axios.get(`${API_BASE_URL}/api/blog/posts`, {
                 timeout: 15000
             });
+            console.log('Posts fetched:', response.data);
             setPosts(response.data);
         } catch (error) {
             console.error('Error fetching posts:', error);
@@ -36,17 +38,24 @@ function App() {
         setMessage('');
 
         try {
+            console.log('Generating single post for:', singleTopic);
             const response = await axios.post(`${API_BASE_URL}/api/blog/generate`, {
                 topic: singleTopic,
                 details: details
             }, {
-                timeout: 60000 // 60 seconds for AI generation
+                timeout: 60000
             });
 
+            console.log('Single generation response:', response.data);
             setMessage(response.data.message);
             setSingleTopic('');
             setDetails('');
-            fetchPosts(); // Refresh the posts list
+            
+            // Wait a bit before fetching to ensure the post is saved
+            setTimeout(() => {
+                fetchPosts();
+            }, 1000);
+            
         } catch (error) {
             console.error('Generation error:', error);
             setMessage('Error generating post: ' + (error.response?.data?.error || error.message));
@@ -61,17 +70,24 @@ function App() {
         setMessage('');
 
         const topicList = topics.split('\n').filter(topic => topic.trim());
+        console.log('Generating bulk posts for:', topicList);
 
         try {
             const response = await axios.post(`${API_BASE_URL}/api/blog/generate-bulk`, {
                 topics: topicList
             }, {
-                timeout: 120000 // 2 minutes for bulk generation
+                timeout: 120000
             });
 
+            console.log('Bulk generation response:', response.data);
             setMessage(response.data.message);
             setTopics('');
-            fetchPosts(); // Refresh the posts list
+            
+            // Wait a bit before fetching to ensure posts are saved
+            setTimeout(() => {
+                fetchPosts();
+            }, 2000);
+            
         } catch (error) {
             console.error('Bulk generation error:', error);
             setMessage('Error generating posts: ' + (error.response?.data?.error || error.message));
@@ -122,11 +138,26 @@ AI in Software Development`);
             const response = await axios.get(`${API_BASE_URL}/health`, {
                 timeout: 10000
             });
-            setMessage(`✅ Backend connected: ${response.data.status} - ${response.data.service}`);
+            setMessage(`✅ Backend connected: ${response.data.status} - Database: ${response.data.database}`);
         } catch (error) {
             setMessage('❌ Backend connection failed: ' + error.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const clearAllPosts = async () => {
+        if (window.confirm('Are you sure you want to clear all posts? This action cannot be undone.')) {
+            try {
+                // Delete posts one by one (since we don't have a bulk delete endpoint)
+                for (const post of posts) {
+                    await axios.delete(`${API_BASE_URL}/api/blog/posts/${post._id}`);
+                }
+                setMessage('All posts cleared successfully');
+                setPosts([]);
+            } catch (error) {
+                setMessage('Error clearing posts: ' + (error.response?.data?.error || error.message));
+            }
         }
     };
 
@@ -143,6 +174,11 @@ AI in Software Development`);
                     <button type="button" onClick={fetchPosts} disabled={loading}>
                         Refresh Posts
                     </button>
+                    {posts.length > 0 && (
+                        <button type="button" onClick={clearAllPosts} disabled={loading} className="clear-all-btn">
+                            Clear All Posts
+                        </button>
+                    )}
                 </div>
 
                 <div className="section">
@@ -210,38 +246,55 @@ AI in Software Development`);
                 <div className="section">
                     <div className="section-header">
                         <h2>Generated Posts ({posts.length})</h2>
-                        <button onClick={fetchPosts} className="refresh-btn" disabled={loading}>
-                            ↻ Refresh
-                        </button>
+                        <div className="section-actions">
+                            <button onClick={fetchPosts} className="refresh-btn" disabled={loading}>
+                                ↻ Refresh
+                            </button>
+                            {posts.length > 0 && (
+                                <button onClick={() => setPosts([])} className="clear-btn">
+                                    Clear View
+                                </button>
+                            )}
+                        </div>
                     </div>
                     
                     {posts.length === 0 ? (
                         <div className="no-posts">
                             <p>No posts generated yet. Start by generating some blog posts above!</p>
+                            <p className="hint">If you just generated posts, click "Refresh Posts" to load them.</p>
                         </div>
                     ) : (
                         <div className="posts-list">
-                            {posts.map((post) => (
-                                <div key={post._id} className="post-card">
+                            {posts.map((post, index) => (
+                                <div key={post._id || index} className="post-card">
                                     <div className="post-header">
-                                        <h3>{post.title}</h3>
+                                        <h3>{post.title || 'Untitled Post'}</h3>
                                         <button 
                                             onClick={() => deletePost(post._id)} 
                                             className="delete-btn"
                                             title="Delete post"
+                                            disabled={loading}
                                         >
                                             🗑️
                                         </button>
                                     </div>
                                     <div className="post-meta">
+                                        <span>Topic: {post.topic || 'General'}</span>
                                         <span>Words: {post.wordCount || 'N/A'}</span>
                                         <span>Generated: {new Date(post.generatedAt).toLocaleString()}</span>
                                     </div>
                                     <div className="post-preview">
-                                        {post.content ? `${post.content.substring(0, 200)}...` : 'No content available'}
+                                        {post.content ? 
+                                            `${post.content.substring(0, 200)}...` : 
+                                            'No content available'
+                                        }
                                     </div>
                                     <div className="post-actions">
-                                        <button onClick={() => viewPost(post._id)} className="view-btn">
+                                        <button 
+                                            onClick={() => viewPost(post._id)} 
+                                            className="view-btn"
+                                            disabled={loading}
+                                        >
                                             View Full Post
                                         </button>
                                     </div>
@@ -256,7 +309,7 @@ AI in Software Development`);
                 <div className="modal-overlay" onClick={() => setSelectedPost(null)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>{selectedPost.title}</h2>
+                            <h2>{selectedPost.title || 'Untitled Post'}</h2>
                             <button className="close-btn" onClick={() => setSelectedPost(null)}>×</button>
                         </div>
                         <div className="modal-body">
@@ -269,6 +322,7 @@ AI in Software Development`);
                             </div>
                         </div>
                         <div className="modal-footer">
+                            <span>Topic: {selectedPost.topic || 'General'}</span>
                             <span>Word Count: {selectedPost.wordCount || 'N/A'}</span>
                             <span>Generated: {new Date(selectedPost.generatedAt).toLocaleString()}</span>
                         </div>
