@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 // Base URL for your backend API
-const API_BASE_URL = 'https://autodialer-app-backend.onrender.com';
+const API_BASE_URL = 'https://blog-generator-backend-d1zx.onrender.com';
 
 function App() {
     const [phoneNumbers, setPhoneNumbers] = useState('');
