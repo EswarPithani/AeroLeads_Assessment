@@ -1,27 +1,35 @@
 .App {
-  font-family: Arial, sans-serif;
-  max-width: 1200px;
-  margin: 0 auto;
+  text-align: center;
   padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
 }
 
 .container {
-  background: #f5f5f5;
-  padding: 20px;
-  border-radius: 8px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .scraper-form {
-  margin-bottom: 30px;
+  background: #f5f5f5;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  text-align: left;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
   font-weight: bold;
 }
 
@@ -37,42 +45,71 @@
 .button-group {
   display: flex;
   gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 button {
   padding: 10px 20px;
-  background: #0073b1;
-  color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  transition: background-color 0.3s;
 }
 
-button:hover {
-  background: #005582;
+button:not(:disabled) {
+  background-color: #0073b1;
+  color: white;
 }
 
 button:disabled {
-  background: #ccc;
+  background-color: #ccc;
   cursor: not-allowed;
 }
 
-.export-btn {
-  background: #28a745;
+button:hover:not(:disabled) {
+  background-color: #005582;
 }
 
-.export-btn:hover {
-  background: #218838;
+.export-btn {
+  background-color: #28a745 !important;
+}
+
+.export-btn:hover:not(:disabled) {
+  background-color: #218838 !important;
+}
+
+.clear-btn {
+  background-color: #dc3545 !important;
+}
+
+.clear-btn:hover:not(:disabled) {
+  background-color: #c82333 !important;
 }
 
 .message {
-  padding: 10px;
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
+  padding: 15px;
   border-radius: 4px;
   margin: 20px 0;
+  font-weight: bold;
+}
+
+.message.success {
+  background-color: #d4edda;
   color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.results {
+  margin-top: 30px;
+  text-align: left;
 }
 
 .results-header {
@@ -80,35 +117,55 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .profiles-list {
   display: grid;
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
 }
 
 .profile-card {
   background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
   padding: 15px;
-  border-radius: 4px;
-  border-left: 4px solid #0073b1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .profile-card h3 {
-  margin: 0 0 10px 0;
+  margin-top: 0;
   color: #0073b1;
 }
 
 .profile-card p {
-  margin: 5px 0;
+  margin: 8px 0;
+  font-size: 14px;
 }
 
-.profile-card a {
+.profile-link {
   color: #0073b1;
   text-decoration: none;
+  word-break: break-all;
 }
 
-.profile-card a:hover {
+.profile-link:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .button-group {
+    flex-direction: column;
+  }
+  
+  .results-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .profiles-list {
+    grid-template-columns: 1fr;
+  }
 }
