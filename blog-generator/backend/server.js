@@ -16,15 +16,18 @@ app.use(express.json());
 // MongoDB connection with better error handling
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/blog_generator';
 
-console.log('MongoDB URI:', MONGODB_URI); // Debug log
+console.log('MongoDB URI:', MONGODB_URI);
 
 const connectDB = async () => {
     try {
-        await mongoose.connect(MONGODB_URI);
+        await mongoose.connect(MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
         console.log('MongoDB connected successfully for Blog Generator');
     } catch (error) {
         console.error('MongoDB connection error:', error.message);
-        console.log('App will run without database connection');
+        console.log('App will run with in-memory storage');
     }
 };
 
@@ -44,105 +47,140 @@ const blogPostSchema = new mongoose.Schema({
 
 const BlogPost = mongoose.model('BlogPost', blogPostSchema);
 
+// In-memory storage as fallback
+let memoryPosts = [];
+
 // Enhanced Mock AI Service
 const aiService = {
     async generateBlogPost(topic, details = '') {
         console.log(`Generating blog post for topic: "${topic}"`);
         
         // Simulate AI processing time
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         const content = `
 # ${topic}
 
 ## Introduction
-Welcome to this comprehensive guide on ${topic}. In today's rapidly evolving technological landscape, understanding ${topic} has become increasingly important for developers, businesses, and enthusiasts alike.
+Welcome to this comprehensive guide on ${topic}. In today's rapidly evolving technological landscape, understanding ${topic} has become increasingly important.
 
-## What is ${topic}?
-${topic} represents a significant area in modern technology that has transformed how we approach various challenges and opportunities in the digital space.
+## Main Content
+${topic} represents a significant area in modern technology that has transformed how we approach various challenges.
 
 ### Key Benefits
 - **Enhanced Efficiency**: ${topic} enables more streamlined processes
 - **Improved Performance**: Better results through optimized approaches  
 - **Scalability**: Solutions that grow with your needs
-- **Cost-Effectiveness**: Maximizing value while minimizing expenses
 
 ## Core Concepts
-
-### Fundamental Principles
-The foundation of ${topic} rests on several key principles that ensure its effectiveness and reliability in various applications.
-
-### Implementation Strategies
-Successful implementation of ${topic} requires careful planning and execution. Here are some proven strategies:
-
-1. **Start Small**: Begin with a focused implementation
-2. **Iterate Quickly**: Learn and adapt through rapid iterations
-3. **Measure Results**: Track key metrics to gauge success
-4. **Scale Gradually**: Expand implementation based on proven results
+The foundation of ${topic} rests on several key principles that ensure its effectiveness and reliability.
 
 ## Practical Applications
-
-### Real-World Use Cases
-${topic} has been successfully applied across numerous industries and scenarios:
-
-- **Web Development**: Enhancing user experiences and performance
-- **Data Analysis**: Processing and interpreting complex datasets
-- **Automation**: Streamlining repetitive tasks and processes
-- **Innovation**: Driving new solutions and approaches
-
-## Best Practices
-
-### Do's and Don'ts
-**Do:**
-- Research thoroughly before implementation
-- Test extensively in controlled environments
-- Document your processes and learnings
-- Stay updated with latest developments
-
-**Don't:**
-- Rush implementation without proper planning
-- Ignore security considerations
-- Overlook performance implications
-- Disregard user feedback
-
-## Advanced Techniques
-
-### Optimization Strategies
-For those looking to take ${topic} to the next level, consider these advanced optimization techniques:
-
-- Performance tuning and benchmarking
-- Integration with complementary technologies
-- Customization for specific use cases
-- Automation and workflow enhancements
-
-## Future Trends
-
-### What's Next for ${topic}?
-The future of ${topic} looks promising with several emerging trends:
-
-- Artificial Intelligence integration
-- Enhanced security features
-- Improved user experiences
-- Broader industry adoption
+${topic} has been successfully applied across numerous industries and scenarios.
 
 ## Conclusion
-
-${topic} represents a powerful approach that continues to evolve and improve. By understanding its core concepts, implementing best practices, and staying informed about emerging trends, you can effectively leverage ${topic} to achieve your goals.
-
-Remember that continuous learning and adaptation are key to success with ${topic}. The landscape is always changing, and staying current will ensure you get the most value from your efforts.
+${topic} represents a powerful approach that continues to evolve and improve. By understanding its core concepts and implementing best practices, you can effectively leverage ${topic} to achieve your goals.
 
 ${details ? `\n## Additional Considerations\n${details}` : ''}
 
 ---
-*This article was generated to provide comprehensive insights into ${topic}. Always verify information and adapt recommendations to your specific context.*
+*This article was generated to provide insights into ${topic}.*
         `.trim();
 
         return {
             title: topic,
             content: content,
             wordCount: content.split(/\s+/).length,
-            topic: topic
+            topic: topic,
+            generatedAt: new Date()
         };
+    }
+};
+
+// Save post to storage (database or memory)
+const savePost = async (postData) => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            // Save to MongoDB
+            const blogPost = new BlogPost(postData);
+            const savedPost = await blogPost.save();
+            console.log('Post saved to MongoDB:', savedPost._id);
+            return savedPost;
+        } else {
+            // Save to memory
+            const memoryPost = {
+                ...postData,
+                _id: 'mem-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+            };
+            memoryPosts.unshift(memoryPost); // Add to beginning
+            console.log('Post saved to memory:', memoryPost._id);
+            return memoryPost;
+        }
+    } catch (error) {
+        console.error('Error saving post:', error);
+        // Fallback to memory storage
+        const memoryPost = {
+            ...postData,
+            _id: 'mem-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+        };
+        memoryPosts.unshift(memoryPost);
+        return memoryPost;
+    }
+};
+
+// Get all posts from storage
+const getAllPosts = async () => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            // Get from MongoDB
+            const posts = await BlogPost.find().sort({ generatedAt: -1 });
+            console.log('Retrieved posts from MongoDB:', posts.length);
+            return posts;
+        } else {
+            // Get from memory
+            console.log('Retrieved posts from memory:', memoryPosts.length);
+            return memoryPosts;
+        }
+    } catch (error) {
+        console.error('Error fetching posts:', error);
+        // Fallback to memory storage
+        return memoryPosts;
+    }
+};
+
+// Get single post by ID
+const getPostById = async (id) => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            return await BlogPost.findById(id);
+        } else {
+            return memoryPosts.find(post => post._id === id);
+        }
+    } catch (error) {
+        console.error('Error fetching post by ID:', error);
+        return memoryPosts.find(post => post._id === id);
+    }
+};
+
+// Delete post by ID
+const deletePostById = async (id) => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            return await BlogPost.findByIdAndDelete(id);
+        } else {
+            const index = memoryPosts.findIndex(post => post._id === id);
+            if (index !== -1) {
+                return memoryPosts.splice(index, 1)[0];
+            }
+            return null;
+        }
+    } catch (error) {
+        console.error('Error deleting post:', error);
+        const index = memoryPosts.findIndex(post => post._id === id);
+        if (index !== -1) {
+            return memoryPosts.splice(index, 1)[0];
+        }
+        return null;
     }
 };
 
@@ -163,16 +201,8 @@ app.post('/api/blog/generate', async (req, res) => {
         // Generate blog post using AI service
         const generatedPost = await aiService.generateBlogPost(topic, details);
         
-        // Save to database if connected
-        let savedPost;
-        if (mongoose.connection.readyState === 1) {
-            const blogPost = new BlogPost(generatedPost);
-            savedPost = await blogPost.save();
-            console.log('Post saved to database:', savedPost._id);
-        } else {
-            savedPost = { ...generatedPost, _id: 'mock-id-' + Date.now() };
-            console.log('Database not connected, using mock post');
-        }
+        // Save to storage
+        const savedPost = await savePost(generatedPost);
         
         res.json({
             message: 'Blog post generated successfully',
@@ -183,8 +213,7 @@ app.post('/api/blog/generate', async (req, res) => {
         console.error('Error in /api/blog/generate:', error);
         res.status(500).json({ 
             error: 'Failed to generate blog post',
-            details: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            details: error.message
         });
     }
 });
@@ -214,16 +243,7 @@ app.post('/api/blog/generate-bulk', async (req, res) => {
         for (const topic of topics) {
             if (topic && typeof topic === 'string' && topic.trim()) {
                 const generatedPost = await aiService.generateBlogPost(topic.trim());
-                
-                // Save to database if connected
-                let savedPost;
-                if (mongoose.connection.readyState === 1) {
-                    const blogPost = new BlogPost(generatedPost);
-                    savedPost = await blogPost.save();
-                } else {
-                    savedPost = { ...generatedPost, _id: 'mock-id-' + Date.now() + Math.random() };
-                }
-                
+                const savedPost = await savePost(generatedPost);
                 generatedPosts.push(savedPost);
             }
         }
@@ -239,22 +259,14 @@ app.post('/api/blog/generate-bulk', async (req, res) => {
         console.error('Error in /api/blog/generate-bulk:', error);
         res.status(500).json({ 
             error: 'Failed to generate bulk posts',
-            details: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            details: error.message
         });
     }
 });
 
 app.get('/api/blog/posts', async (req, res) => {
     try {
-        let posts;
-        if (mongoose.connection.readyState === 1) {
-            posts = await BlogPost.find().sort({ generatedAt: -1 });
-        } else {
-            posts = [];
-            console.log('Database not connected, returning empty posts array');
-        }
-        
+        const posts = await getAllPosts();
         res.json(posts);
     } catch (error) {
         console.error('Error fetching posts:', error);
@@ -267,11 +279,7 @@ app.get('/api/blog/posts', async (req, res) => {
 
 app.get('/api/blog/posts/:id', async (req, res) => {
     try {
-        if (mongoose.connection.readyState !== 1) {
-            return res.status(503).json({ error: 'Database not available' });
-        }
-        
-        const post = await BlogPost.findById(req.params.id);
+        const post = await getPostById(req.params.id);
         if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
@@ -287,11 +295,7 @@ app.get('/api/blog/posts/:id', async (req, res) => {
 
 app.delete('/api/blog/posts/:id', async (req, res) => {
     try {
-        if (mongoose.connection.readyState !== 1) {
-            return res.status(503).json({ error: 'Database not available' });
-        }
-        
-        const post = await BlogPost.findByIdAndDelete(req.params.id);
+        const post = await deletePostById(req.params.id);
         if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
@@ -305,6 +309,23 @@ app.delete('/api/blog/posts/:id', async (req, res) => {
     }
 });
 
+// Clear all posts (for testing)
+app.delete('/api/blog/posts', async (req, res) => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            await BlogPost.deleteMany({});
+        }
+        memoryPosts = [];
+        res.json({ message: 'All posts cleared successfully' });
+    } catch (error) {
+        console.error('Error clearing posts:', error);
+        res.status(500).json({ 
+            error: 'Failed to clear posts',
+            details: error.message
+        });
+    }
+});
+
 // Health check route
 app.get('/health', (req, res) => {
     res.json({ 
@@ -312,6 +333,7 @@ app.get('/health', (req, res) => {
         service: 'Blog Generator API',
         timestamp: new Date().toISOString(),
         database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+        memoryPosts: memoryPosts.length,
         version: '1.0.0'
     });
 });
@@ -320,7 +342,7 @@ app.get('/health', (req, res) => {
 app.get('/api/test', async (req, res) => {
     try {
         // Create a test post to verify everything works
-        const testPost = {
+        const testPostData = {
             title: 'Test Blog Post',
             content: 'This is a test blog post to verify the API is working correctly.',
             topic: 'API Testing',
@@ -328,22 +350,21 @@ app.get('/api/test', async (req, res) => {
             generatedAt: new Date()
         };
 
-        let savedPost;
-        if (mongoose.connection.readyState === 1) {
-            const blogPost = new BlogPost(testPost);
-            savedPost = await blogPost.save();
-        }
+        const savedPost = await savePost(testPostData);
 
         res.json({ 
             message: 'Blog Generator API is working!',
             database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-            testPost: savedPost || testPost,
+            storage: mongoose.connection.readyState === 1 ? 'MongoDB' : 'Memory',
+            testPost: savedPost,
+            totalPosts: (await getAllPosts()).length,
             endpoints: [
                 'POST /api/blog/generate',
                 'POST /api/blog/generate-bulk', 
                 'GET /api/blog/posts',
                 'GET /api/blog/posts/:id',
                 'DELETE /api/blog/posts/:id',
+                'DELETE /api/blog/posts (clear all)',
                 'GET /health'
             ]
         });
@@ -361,6 +382,7 @@ app.get('/', (req, res) => {
         message: 'Welcome to Blog Generator API',
         version: '1.0.0',
         database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+        storage: mongoose.connection.readyState === 1 ? 'MongoDB' : 'Memory',
         endpoints: {
             health: '/health',
             test: '/api/test',
@@ -368,7 +390,8 @@ app.get('/', (req, res) => {
             generateBulk: 'POST /api/blog/generate-bulk',
             getPosts: 'GET /api/blog/posts',
             getPost: 'GET /api/blog/posts/:id',
-            deletePost: 'DELETE /api/blog/posts/:id'
+            deletePost: 'DELETE /api/blog/posts/:id',
+            clearAll: 'DELETE /api/blog/posts'
         },
         usage: {
             single: 'POST /api/blog/generate with { "topic": "Your Topic", "details": "Optional details" }',
@@ -383,4 +406,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📍 Health check: https://blog-generator-backend-d1zx.onrender.com/health`);
     console.log(`📍 Test endpoint: https://blog-generator-backend-d1zx.onrender.com/api/test`);
     console.log(`📍 Database status: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
+    console.log(`📍 Storage: ${mongoose.connection.readyState === 1 ? 'MongoDB' : 'Memory'}`);
 });
